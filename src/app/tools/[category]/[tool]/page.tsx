@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect, use, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import JSZip from "jszip";
 import { motion } from "framer-motion";
 import BarcodeComponent from "react-barcode";
 import QRCode from "qrcode";
+import { BLOG_ARTICLES } from "@/lib/blogArticles";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft,
+  ArrowRight,
   Upload,
   FileText,
   FileSpreadsheet,
@@ -41,6 +44,7 @@ import {
   ExternalLink,
   Download,
   HelpCircle,
+  BookOpen,
   Lock,
   Square,
   Circle,
@@ -52,7 +56,7 @@ import {
   MapPin,
   Phone,
   Mail,
-  Link,
+  Link as LinkIcon,
   AlignLeft,
   User,
   Wifi,
@@ -3672,6 +3676,21 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
                   <Badge variant="outline" className="text-[10px] font-black text-slate-400 tracking-wider px-3.5 py-1 rounded-full">
                     Accepts {info.accept.replace(/\*/g, "")}
                   </Badge>
+
+                  {(() => {
+                    const article = BLOG_ARTICLES.find((a) => a.toolSlug === tool);
+                    if (!article) return null;
+                    return (
+                      <Link
+                        href={`/blog/${article.slug}`}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-orange-50 hover:bg-orange-100 border border-orange-200/80 text-orange-700 text-xs font-black tracking-wide transition-all group shadow-xs mt-3"
+                      >
+                        <BookOpen className="w-4 h-4 text-orange-500" />
+                        <span>Read Detailed Guide: {article.title}</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-orange-500 group-hover:translate-x-1 transition-transform" />
+                      </Link>
+                    );
+                  })()}
                 </Card>
               </div>
             ) : (

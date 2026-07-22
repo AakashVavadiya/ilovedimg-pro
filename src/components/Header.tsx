@@ -20,6 +20,7 @@ import {
   RotateCw,
   Code2,
   Sliders,
+  BookOpen,
 } from "lucide-react";
 
 interface ToolItem {
@@ -117,17 +118,18 @@ export default function Header() {
         </Link>
 
         {/* Tools Dropdown Shortcut */}
-        <div className="relative" ref={dropdownRef}>
-          <button
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all"
-          >
-            <span>All Tools</span>
-            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`} />
-          </button>
+        <div className="flex items-center gap-2">
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all"
+            >
+              <span>All Tools</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`} />
+            </button>
 
-          <AnimatePresence>
-            {dropdownOpen && (
+            <AnimatePresence>
+              {dropdownOpen && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -167,7 +169,16 @@ export default function Header() {
             )}
           </AnimatePresence>
         </div>
+
+        <Link
+          href="/blog"
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider text-slate-600 hover:text-orange-600 hover:bg-slate-50 transition-all border border-transparent hover:border-orange-200"
+        >
+          <BookOpen className="w-3.5 h-3.5 text-orange-500" />
+          <span>Articles</span>
+        </Link>
       </div>
+    </div>
 
       {/* Search Bar in Header */}
       <div className="relative flex items-center" ref={searchRef}>
