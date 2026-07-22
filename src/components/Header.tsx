@@ -1,7 +1,7 @@
 // I Loved IMG - Created By Uniqrs Studio
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -46,7 +46,7 @@ const HEADER_TOOLS: ToolItem[] = [
   { id: "blur-face", name: "Blur Face Tool", icon: Sliders, color: "text-indigo-500", description: "Detect and blur faces" },
 ];
 
-export default function Header() {
+function HeaderInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
@@ -252,5 +252,13 @@ export default function Header() {
         </AnimatePresence>
       </div>
     </header>
+  );
+}
+
+export default function Header() {
+  return (
+    <Suspense fallback={<div className="h-[65px] w-full bg-white/95 border-b border-slate-200/85" />}>
+      <HeaderInner />
+    </Suspense>
   );
 }
