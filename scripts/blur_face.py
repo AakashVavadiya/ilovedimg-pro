@@ -26,8 +26,21 @@ def main():
     try:
         from image_validator import validate_image_file
         validate_image_file(input_path, max_size_mb=25)
-        
+    except Exception as ve:
+        print(f"Validation error: {ve}")
+        sys.exit(1)
+
+    try:
         import cv2
+    except ImportError:
+        print("Error: OpenCV ('cv2') module is not installed. Please install 'opencv-python-headless' from requirements.txt.")
+        sys.exit(1)
+
+    if not hasattr(cv2, "CascadeClassifier"):
+        print("Error: OpenCV ('cv2') module is missing 'CascadeClassifier'. Please ensure 'opencv-python-headless' is properly installed.")
+        sys.exit(1)
+
+    try:
         import numpy as np
 
         print(f"Loading image for face blurring: {input_path}")
@@ -48,7 +61,13 @@ def main():
             # Grayscale already
             gray = img
 
-        cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+        cascade_path = None
+        if hasattr(cv2, "data") and hasattr(cv2.data, "haarcascades"):
+            cascade_path = os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml")
+        
+        if not cascade_path or not os.path.exists(cascade_path):
+            cascade_path = "haarcascade_frontalface_default.xml"
+
         face_cascade = cv2.CascadeClassifier(cascade_path)
         if face_cascade.empty():
             raise ValueError(f"Could not load Haar cascade classifier from {cascade_path}")

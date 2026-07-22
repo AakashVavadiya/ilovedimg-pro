@@ -16,8 +16,8 @@ def validate_image_file(src_path, max_size_mb=25):
     try:
         from PIL import Image
     except ImportError:
-        # Pillow will be installed by script runner
-        return
+        print("Error: Required package 'Pillow' is missing. Please install dependencies in requirements.txt.")
+        sys.exit(1)
         
     try:
         # 2. Verify basic structure and headers

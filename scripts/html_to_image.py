@@ -1,20 +1,6 @@
 import sys
 import json
 import os
-import subprocess
-
-def install_and_import(package, pip_name=None):
-    if pip_name is None:
-        pip_name = package
-    try:
-        __import__(package)
-    except ImportError:
-        print(f"Installing {pip_name}...")
-        try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", pip_name])
-        except Exception as e:
-            print(f"Failed to install {pip_name} via standard pip: {e}")
-            sys.exit(1)
 
 def main():
     if len(sys.argv) < 2:
@@ -47,14 +33,38 @@ def main():
     try:
         from html2image import Html2Image  # type: ignore
     except ImportError:
-        install_and_import("html2image")
-        from html2image import Html2Image  # type: ignore
+        print("Error: Required package 'html2image' is missing. Please install dependencies in requirements.txt.")
+        sys.exit(1)
 
     try:
         print(f"Converting HTML to image at {output} ({width}x{height})")
         
-        # Initialize html2image
-        hti = Html2Image(size=(width, height))
+        chrome_flags = [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--headless=new",
+        ]
+
+        browser_executable = None
+        if os.path.exists("/usr/bin/google-chrome"):
+            browser_executable = "/usr/bin/google-chrome"
+        elif os.path.exists("/usr/bin/chromium-browser"):
+            browser_executable = "/usr/bin/chromium-browser"
+        elif os.path.exists("/usr/bin/chromium"):
+            browser_executable = "/usr/bin/chromium"
+        elif sys.platform.startswith("linux"):
+            browser_executable = "/usr/bin/google-chrome"
+
+        hti_kwargs = {
+            "size": (width, height),
+            "custom_flags": chrome_flags,
+        }
+        if browser_executable:
+            hti_kwargs["browser_executable"] = browser_executable
+
+        hti = Html2Image(**hti_kwargs)
         
         output_dir = os.path.dirname(os.path.abspath(output))
         output_file = os.path.basename(output)
@@ -86,7 +96,7 @@ def main():
             
     except Exception as e:
         print(f"Error converting HTML to image: {e}")
-        print("Tip: This tool runs offline but requires Google Chrome or Chromium to be installed on your machine.")
+        print("Tip: This tool requires Google Chrome or Chromium to be installed on your machine (e.g. /usr/bin/google-chrome).")
         sys.exit(1)
 
 if __name__ == "__main__":

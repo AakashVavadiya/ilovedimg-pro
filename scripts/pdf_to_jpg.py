@@ -1,21 +1,7 @@
 import sys
 import json
 import os
-import subprocess
-import zipfile
 
-def install_and_import(package, pip_name=None):
-    if pip_name is None:
-        pip_name = package
-    try:
-        __import__(package)
-    except ImportError:
-        print(f"Installing {pip_name}...")
-        try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", pip_name])
-        except Exception as e:
-            print(f"Failed to install {pip_name} via standard pip: {e}")
-            sys.exit(1)
 
 def main():
     if len(sys.argv) < 2:
@@ -37,9 +23,12 @@ def main():
         print("Error: 'input' and 'output' must be provided in settings.")
         sys.exit(1)
 
-    # Need PyMuPDF
-    install_and_import("fitz", "pymupdf")
-    import fitz
+    import zipfile
+    try:
+        import fitz
+    except ImportError:
+        print("Error: Required package 'pymupdf' (fitz) is missing. Please install dependencies in requirements.txt.")
+        sys.exit(1)
 
     try:
         print(f"Rendering PDF: {input_path} to JPG: {output}")

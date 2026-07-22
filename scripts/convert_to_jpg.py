@@ -1,20 +1,7 @@
 import sys
 import json
 import os
-import subprocess
 
-def install_and_import(package, pip_name=None):
-    if pip_name is None:
-        pip_name = package
-    try:
-        __import__(package)
-    except ImportError:
-        print(f"Installing {pip_name}...")
-        try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", pip_name])
-        except Exception as e:
-            print(f"Failed to install {pip_name} via standard pip: {e}")
-            sys.exit(1)
 
 def main():
     if len(sys.argv) < 2:
@@ -36,8 +23,11 @@ def main():
         print("Error: 'input' and 'output' must be provided in settings.")
         sys.exit(1)
 
-    install_and_import("PIL", "pillow")
-    from PIL import Image
+    try:
+        from PIL import Image
+    except ImportError:
+        print("Error: Required package 'Pillow' is missing. Please install dependencies in requirements.txt.")
+        sys.exit(1)
     from image_validator import validate_image_file
 
     try:
