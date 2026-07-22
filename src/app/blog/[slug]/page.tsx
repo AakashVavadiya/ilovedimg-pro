@@ -164,6 +164,36 @@ export default async function ArticleDetailPage({ params }: Props) {
             ))}
           </div>
 
+          {/* Comparison Table Section if available */}
+          {article.content.comparisonTable && (
+            <div className="pt-8 border-t border-slate-100 space-y-4">
+              <h3 className="text-base sm:text-lg font-black text-slate-850 tracking-tight flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-orange-500" /> {article.content.comparisonTable.title}
+              </h3>
+              
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-xs">
+                <table className="w-full text-left border-collapse text-xs sm:text-sm">
+                  <thead>
+                    <tr className="bg-slate-100/80 border-b border-slate-200 font-black text-slate-800 uppercase tracking-wider text-[11px]">
+                      {article.content.comparisonTable.headers.map((head, hIdx) => (
+                        <th key={hIdx} className="p-3 sm:p-4">{head}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium text-slate-700 bg-white text-xs sm:text-sm">
+                    {article.content.comparisonTable.rows.map((row, rIdx) => (
+                      <tr key={rIdx} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="p-3 sm:p-4 font-bold text-slate-900">{row.feature}</td>
+                        <td className="p-3 sm:p-4 text-emerald-700 font-semibold">{row.tool}</td>
+                        <td className="p-3 sm:p-4 text-slate-500 font-semibold">{row.screenshot}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* FAQs Section */}
           {article.content.faqs && article.content.faqs.length > 0 && (
             <div className="pt-8 border-t border-slate-100 space-y-6">
