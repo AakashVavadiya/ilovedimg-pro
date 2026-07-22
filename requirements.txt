@@ -1,0 +1,8 @@
+pillow
+pillow-heif
+rembg
+pymupdf
+html2image
+opencv-python-headless<5
+numpy
+
