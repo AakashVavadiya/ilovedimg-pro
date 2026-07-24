@@ -17,6 +17,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "I Loved IMG - Bulk Image Editor",
   description: "Every tool you need to edit images in bulk, in seconds. Compress, resize, crop, convert, rotate, and watermark images with local AI features.",
+  other: {
+    "google-adsense-account": "ca-pub-4714888262150506",
+  },
 };
 
 export default function RootLayout({
@@ -30,6 +33,13 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        {/* Google AdSense */}
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4714888262150506"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
         {/* Google Analytics (gtag.js) */}
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-SJ9VC8ZGRK"
