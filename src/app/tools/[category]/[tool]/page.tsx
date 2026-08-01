@@ -20,6 +20,10 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -71,6 +75,8 @@ import {
   RotateCcw,
   Undo,
   Redo,
+  ShieldAlert,
+  Clock,
 } from "lucide-react";
 
 // Tool data map for titles/descriptions
@@ -2612,6 +2618,21 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
   const [downloadBlobUrl, setDownloadBlobUrl] = useState<string | null>(null);
   const [resultFileName, setResultFileName] = useState("");
 
+  // User Limit Dialog state & helpers
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
+  const [limitDialogDetails, setLimitDialogDetails] = useState("");
+
+  const triggerLimitDialog = (message: string) => {
+    setLimitDialogDetails(message || "You have reached your file or usage limit. Please wait and try again after some time.");
+    setShowLimitDialog(true);
+  };
+
+  const getToolSizeLimitMb = (toolName: string): number => {
+    if (toolName === "upscale-image") return 10;
+    if (toolName === "remove-bg") return 15;
+    return 40;
+  };
+
   useEffect(() => {
     return () => {
       if (downloadBlobUrl) URL.revokeObjectURL(downloadBlobUrl);
@@ -2747,6 +2768,29 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
       setErrorMessage(`${invalidCount} file(s) skipped because they do not match ${info.accept.replace(/\*/g, "")}`);
     } else {
       setErrorMessage("");
+    }
+
+    // Size limit check per file
+    const maxMb = getToolSizeLimitMb(tool);
+    const maxBytes = maxMb * 1024 * 1024;
+    const oversizedFile = validFiles.find((f) => f.size > maxBytes);
+    if (oversizedFile) {
+      const fileSizeMb = (oversizedFile.size / (1024 * 1024)).toFixed(1);
+      const msg = `File "${oversizedFile.name}" (${fileSizeMb} MB) exceeds the allowed limit of ${maxMb} MB for ${info?.name || "this tool"}. Please wait and try again after some time or use a smaller file.`;
+      setErrorMessage(msg);
+      triggerLimitDialog(msg);
+      return;
+    }
+
+    // Combined size limit check for batch uploads (100 MB max)
+    const existingBytes = info.isMulti ? uploadedFiles.reduce((sum, f) => sum + f.size, 0) : 0;
+    const newBytes = validFiles.reduce((sum, f) => sum + f.size, 0);
+    if (existingBytes + newBytes > 100 * 1024 * 1024) {
+      const totalMb = ((existingBytes + newBytes) / (1024 * 1024)).toFixed(1);
+      const msg = `Combined file upload size (${totalMb} MB) exceeds the maximum batch limit of 100 MB. Please wait and try again after reducing batch size.`;
+      setErrorMessage(msg);
+      triggerLimitDialog(msg);
+      return;
     }
 
     // Reset any previous bulk results
@@ -3421,7 +3465,15 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
 
         if (!response.ok) {
           const errJson = await response.json().catch(() => ({}));
-          throw new Error(errJson.error || `Process failed with status code ${response.status}`);
+          const errMsg = errJson.error || `Process failed with status code ${response.status}`;
+          if (
+            response.status === 429 ||
+            response.status === 413 ||
+            /limit|exceed|too large|reach|user limit|rate limit|usage/i.test(errMsg)
+          ) {
+            triggerLimitDialog(errMsg);
+          }
+          throw new Error(errMsg);
         }
 
         setProgress(75);
@@ -3483,7 +3535,11 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
       } catch (err: any) {
         console.error("Error processing file:", err);
         setStatus("error");
-        setErrorMessage(err.message || "Failed processing");
+        const errMsg = err.message || "Failed processing";
+        setErrorMessage(errMsg);
+        if (/limit|exceed|too large|reach|user limit|rate limit|usage/i.test(errMsg)) {
+          triggerLimitDialog(errMsg);
+        }
       }
     }
   };
@@ -8562,6 +8618,64 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
           `}</style>
         </>
       )}
+
+      {/* User Limit Reached Modal Dialog */}
+      <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
+        <DialogContent className="sm:max-w-[480px] p-0 border border-amber-200/90 bg-white rounded-3xl overflow-hidden shadow-2xl z-[99999]">
+          <div className="bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-transparent p-6 sm:p-8 flex flex-col items-center text-center space-y-4 border-b border-amber-100/80 relative">
+            <div className="w-16 h-16 rounded-3xl bg-amber-100/90 flex items-center justify-center shadow-inner relative">
+              <ShieldAlert className="w-9 h-9 text-orange-600" />
+              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-orange-500 rounded-full animate-ping" />
+            </div>
+            
+            <div className="space-y-1.5">
+              <h3 className="text-xl font-black text-slate-900 tracking-tight">
+                User Limit Reached
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                You have reached your processing limit. Please wait and try again after some time.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-4">
+            {limitDialogDetails && (
+              <div className="p-4 bg-amber-50/90 border border-amber-200/90 rounded-2xl flex items-start gap-3 text-left shadow-sm">
+                <AlertCircle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <span className="text-[11px] font-black text-amber-950 uppercase tracking-wider block">
+                    Limit Notice
+                  </span>
+                  <p className="text-xs text-amber-900 font-semibold leading-relaxed">
+                    {limitDialogDetails}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2.5 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs text-slate-600">
+              <div className="flex items-center gap-2 text-slate-800 font-bold">
+                <Clock className="w-4 h-4 text-orange-500" />
+                <span>Tips to continue:</span>
+              </div>
+              <ul className="space-y-1.5 pl-5 list-disc text-[11px] text-slate-500 font-medium leading-relaxed">
+                <li>Please wait a few minutes before attempting your next conversion.</li>
+                <li>Ensure single files do not exceed {info ? getToolSizeLimitMb(tool) : 40} MB for this tool.</li>
+                <li>Break large batch uploads into smaller groups (max 100 MB total).</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50/80 border-t border-slate-100 flex justify-end">
+            <Button
+              onClick={() => setShowLimitDialog(false)}
+              className="h-11 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-2xl text-xs font-black px-6 shadow-md hover:shadow-lg transition-all"
+            >
+              Got It, Use After Some Time
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
