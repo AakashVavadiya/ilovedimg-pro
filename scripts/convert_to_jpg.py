@@ -31,7 +31,7 @@ def main():
     from image_validator import validate_image_file
 
     try:
-        validate_image_file(input_path, max_size_mb=25)
+        validate_image_file(input_path, max_size_mb=40)
         print(f"Converting image: {input_path} to JPEG: {output}")
         img = Image.open(input_path)
         

@@ -104,9 +104,9 @@ def main():
     # Run image validation
     if inputs:
         for in_file in inputs:
-            validate_image_file(in_file, max_size_mb=25)
+            validate_image_file(in_file, max_size_mb=40)
     else:
-        validate_image_file(input_path, max_size_mb=25)
+        validate_image_file(input_path, max_size_mb=40)
 
     def compress_single(src_path, dest_path):
         img = Image.open(src_path)

@@ -184,6 +184,32 @@ const isPageInRange = (pageNum: number, rangeStr: string): boolean => {
   return false;
 };
 
+// Helper to validate file type against tool accept pattern
+const isValidFileForTool = (file: File, acceptString: string): boolean => {
+  if (!acceptString || acceptString.trim() === "" || acceptString === "*") return true;
+
+  const acceptTokens = acceptString.split(",").map((s) => s.trim().toLowerCase());
+  const fileName = file.name.toLowerCase();
+  const fileType = file.type.toLowerCase();
+
+  return acceptTokens.some((token) => {
+    if (token === "image/*") {
+      return fileType.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|svg|tiff|ico|heic|avif)$/i.test(fileName);
+    }
+    if (token.startsWith(".")) {
+      return fileName.endsWith(token);
+    }
+    if (token.includes("/")) {
+      if (token.endsWith("/*")) {
+        const category = token.split("/")[0];
+        return fileType.startsWith(category + "/");
+      }
+      return fileType === token;
+    }
+    return false;
+  });
+};
+
 // Client-side PDF Thumbnail renderer component using window.pdfjsLib
 function PdfThumbnail({ file }: { file: File }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
@@ -2601,27 +2627,91 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
     );
   }
 
-  // Drag and Drop helpers
+  // Drag and Drop helpers & window listener
+  const dragCounterRef = useRef(0);
+
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    dragCounterRef.current = 0;
     setDragActive(false);
 
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const filesArray = Array.from(e.dataTransfer.files);
       addFiles(filesArray);
     }
   };
+
+  useEffect(() => {
+    if (!info || info.noUpload) return;
+
+    const handleWindowDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current += 1;
+      if (
+        e.dataTransfer &&
+        e.dataTransfer.types &&
+        (e.dataTransfer.types.includes("Files") || e.dataTransfer.types.includes("application/x-moz-file"))
+      ) {
+        setDragActive(true);
+      }
+    };
+
+    const handleWindowDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current -= 1;
+
+      if (
+        dragCounterRef.current <= 0 ||
+        e.clientX <= 0 ||
+        e.clientY <= 0 ||
+        e.clientX >= window.innerWidth ||
+        e.clientY >= window.innerHeight
+      ) {
+        dragCounterRef.current = 0;
+        setDragActive(false);
+      }
+    };
+
+    const handleWindowDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = "copy";
+      }
+    };
+
+    const handleWindowDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current = 0;
+      setDragActive(false);
+
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const filesArray = Array.from(e.dataTransfer.files);
+        addFiles(filesArray);
+      }
+    };
+
+    window.addEventListener("dragenter", handleWindowDragEnter);
+    window.addEventListener("dragleave", handleWindowDragLeave);
+    window.addEventListener("dragover", handleWindowDragOver);
+    window.addEventListener("drop", handleWindowDrop);
+
+    return () => {
+      window.removeEventListener("dragenter", handleWindowDragEnter);
+      window.removeEventListener("dragleave", handleWindowDragLeave);
+      window.removeEventListener("dragover", handleWindowDragOver);
+      window.removeEventListener("drop", handleWindowDrop);
+    };
+  }, [info]);
 
   const fileInputChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -2631,6 +2721,34 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
   };
 
   const addFiles = (files: File[]) => {
+    if (!files || files.length === 0) return;
+
+    let validFiles: File[] = [];
+    let invalidCount = 0;
+
+    if (info && info.accept) {
+      files.forEach((f) => {
+        if (isValidFileForTool(f, info.accept)) {
+          validFiles.push(f);
+        } else {
+          invalidCount++;
+        }
+      });
+    } else {
+      validFiles = files;
+    }
+
+    if (validFiles.length === 0) {
+      setErrorMessage(`Invalid file format. This tool accepts: ${info.accept.replace(/\*/g, "")}`);
+      return;
+    }
+
+    if (invalidCount > 0) {
+      setErrorMessage(`${invalidCount} file(s) skipped because they do not match ${info.accept.replace(/\*/g, "")}`);
+    } else {
+      setErrorMessage("");
+    }
+
     // Reset any previous bulk results
     Object.values(bulkResults).forEach((res) => {
       if (res.downloadUrl) {
@@ -2642,13 +2760,13 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
     setBulkResults({});
 
     if (info.isMulti) {
-      setUploadedFiles((prev) => [...prev, ...files]);
+      setUploadedFiles((prev) => [...prev, ...validFiles]);
     } else {
-      setUploadedFiles([files[0]]);
-      if (files[0]) {
-        const nameLower = files[0].name.toLowerCase();
+      setUploadedFiles([validFiles[0]]);
+      if (validFiles[0]) {
+        const nameLower = validFiles[0].name.toLowerCase();
         if (nameLower.endsWith(".pdf")) {
-          getPdfPageCount(files[0]).then((count) => {
+          getPdfPageCount(validFiles[0]).then((count) => {
             setPdfPageCount(count);
             // Set default ranges to 1 or default order string to full range sequence
             setRanges("1");
@@ -2658,7 +2776,7 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
           setPdfPageCount(1);
         }
         
-        const isImg = files[0].type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|svg)$/i.test(files[0].name);
+        const isImg = validFiles[0].type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|svg)$/i.test(validFiles[0].name);
         if (isImg) {
           const img = new Image();
           img.onload = () => {
@@ -2678,17 +2796,16 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
               setCropPercent({ x: 25, y: 25, w: 50, h: 50 });
             }
           };
-          img.src = URL.createObjectURL(files[0]);
+          img.src = URL.createObjectURL(validFiles[0]);
         }
       }
     }
-    if (tool === "merge-pdf" && files.length > 0) {
+    if (tool === "merge-pdf" && validFiles.length > 0) {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("collapseSidebar"));
       }
     }
     setStatus("idle");
-    setErrorMessage("");
   };
 
   const removeFile = (idx: number) => {
@@ -3485,6 +3602,32 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
 
   return (
     <div className="space-y-6 pb-12 w-full">
+      {/* Full screen Drag & Drop overlay */}
+      {dragActive && info && !info.noUpload && (
+        <div 
+          className="fixed inset-0 z-[9999] bg-slate-900/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in transition-all duration-300 pointer-events-none select-none"
+        >
+          <div className="border-4 border-dashed border-orange-500 bg-slate-900/90 rounded-3xl p-10 sm:p-16 max-w-xl w-full flex flex-col items-center justify-center space-y-6 shadow-2xl scale-105 transition-transform duration-300 pointer-events-none">
+            <div className="w-24 h-24 rounded-[32px] bg-orange-500/20 flex items-center justify-center shadow-inner animate-bounce pointer-events-none">
+              <Upload className="w-12 h-12 text-orange-400" />
+            </div>
+            <div className="space-y-3 pointer-events-none">
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                Drop your {info.isMulti ? "files" : "file"} here
+              </h2>
+              <p className="text-sm text-slate-200 font-medium max-w-md mx-auto">
+                Release to upload to <span className="text-orange-400 font-bold">{info.name}</span>
+              </p>
+            </div>
+            {info.accept && (
+              <Badge variant="outline" className="text-xs font-black text-orange-300 bg-orange-500/20 border-orange-400/40 px-4 py-1.5 rounded-full uppercase tracking-wider pointer-events-none">
+                Accepts: {info.accept.replace(/\*/g, "")}
+              </Badge>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Header breadcrumb */}
       <div className="flex items-center gap-3">
         <Button
@@ -3499,11 +3642,17 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
         <div className="h-px flex-1 bg-slate-200" />
       </div>
 
-
-
       {isCleanFlow && uploadedFiles.length === 0 ? (
         <div className="max-w-5xl mx-auto w-full py-8 animate-fade-in">
-          <Card className="p-6 sm:p-12 border border-slate-200/80 bg-white/70 backdrop-blur-md rounded-3xl min-h-[350px] sm:min-h-[480px] flex flex-col items-center justify-center space-y-8 shadow-sm">
+          <Card 
+            onDragEnter={handleDrag}
+            onDragOver={handleDrag}
+            onDragLeave={handleDrag}
+            onDrop={handleDrop}
+            className={`p-6 sm:p-12 border transition-all duration-300 bg-white/70 backdrop-blur-md rounded-3xl min-h-[350px] sm:min-h-[480px] flex flex-col items-center justify-center space-y-8 shadow-sm ${
+              dragActive ? "border-orange-500 ring-4 ring-orange-500/20 bg-orange-50/50 scale-[1.01]" : "border-slate-200/80"
+            }`}
+          >
             <div className="w-20 h-20 rounded-[28px] bg-orange-50 flex items-center justify-center shadow-inner">
               <Upload className="w-9 h-9 text-orange-500 animate-bounce" />
             </div>
@@ -3647,7 +3796,15 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
           {info.isMulti ? (
             uploadedFiles.length === 0 ? (
               <div className="max-w-5xl mx-auto w-full py-8 animate-fade-in">
-                <Card className="p-6 sm:p-12 border border-slate-200/80 bg-white/70 backdrop-blur-md rounded-3xl min-h-[350px] sm:min-h-[480px] flex flex-col items-center justify-center space-y-8 shadow-sm">
+                <Card 
+                  onDragEnter={handleDrag}
+                  onDragOver={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDrop={handleDrop}
+                  className={`p-6 sm:p-12 border transition-all duration-300 bg-white/70 backdrop-blur-md rounded-3xl min-h-[350px] sm:min-h-[480px] flex flex-col items-center justify-center space-y-8 shadow-sm ${
+                    dragActive ? "border-orange-500 ring-4 ring-orange-500/20 bg-orange-50/50 scale-[1.01]" : "border-slate-200/80"
+                  }`}
+                >
                   <div className="w-20 h-20 rounded-[28px] bg-orange-50 flex items-center justify-center shadow-inner">
                     <Upload className="w-9 h-9 text-orange-500 animate-bounce" />
                   </div>
@@ -3695,7 +3852,19 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
                 </Card>
               </div>
             ) : (
-              <Card className="p-6 border border-slate-200 bg-white rounded-3xl space-y-4 shadow-sm relative overflow-hidden">
+              <Card 
+                onDragEnter={handleDrag}
+                onDragOver={handleDrag}
+                onDragLeave={handleDrag}
+                onDrop={(e) => {
+                  if (e.dataTransfer?.files?.length && draggedIdx === null) {
+                    handleDrop(e);
+                  }
+                }}
+                className={`p-6 border transition-all duration-300 bg-white rounded-3xl space-y-4 shadow-sm relative overflow-hidden ${
+                  dragActive ? "border-orange-500 ring-4 ring-orange-500/20 bg-orange-50/20" : "border-slate-200"
+                }`}
+              >
                 <input
                   type="file"
                   id="add-more-upload"
@@ -4147,13 +4316,19 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
                     {category !== "image-tools" && info?.accept !== "image/*" && tool !== "merge-pdf" && tool !== "compress-image" && status === "idle" && (
                       <div
                         onClick={() => document.getElementById("add-more-upload")?.click()}
-                        className="relative flex flex-col items-center justify-center border-2 border-dashed border-slate-300 hover:border-orange-500 bg-slate-50/50 hover:bg-orange-50/10 rounded-3xl cursor-pointer transition-all duration-300 aspect-[3/4] p-4 text-center group animate-fade-in"
+                        onDragEnter={handleDrag}
+                        onDragOver={handleDrag}
+                        onDragLeave={handleDrag}
+                        onDrop={handleDrop}
+                        className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-3xl cursor-pointer transition-all duration-300 aspect-[3/4] p-4 text-center group animate-fade-in ${
+                          dragActive ? "border-orange-500 bg-orange-50/20 scale-[1.02]" : "border-slate-300 hover:border-orange-500 bg-slate-50/50 hover:bg-orange-50/10"
+                        }`}
                       >
                         <div className="w-10 h-10 rounded-2xl bg-orange-50 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300">
                           <Upload className="w-5 h-5 text-orange-500" />
                         </div>
                         <h4 className="text-xs font-black text-slate-700">Add More</h4>
-                        <p className="text-[10px] text-slate-400 font-medium mt-1">Browse files</p>
+                        <p className="text-[10px] text-slate-400 font-medium mt-1">Browse or drop files</p>
                       </div>
                     )}
                     {uploadedFiles.map((file, idx) => {
@@ -4361,7 +4536,15 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
             <>
               {!info.noUpload && uploadedFiles.length === 0 && (
                 <div className="max-w-5xl mx-auto w-full py-8 animate-fade-in">
-                  <Card className="p-6 sm:p-12 border border-slate-200/80 bg-white/70 backdrop-blur-md rounded-3xl min-h-[350px] sm:min-h-[480px] flex flex-col items-center justify-center space-y-8 shadow-sm">
+                  <Card 
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={handleDrop}
+                    className={`p-6 sm:p-12 border transition-all duration-300 bg-white/70 backdrop-blur-md rounded-3xl min-h-[350px] sm:min-h-[480px] flex flex-col items-center justify-center space-y-8 shadow-sm ${
+                      dragActive ? "border-orange-500 ring-4 ring-orange-500/20 bg-orange-50/50 scale-[1.01]" : "border-slate-200/80"
+                    }`}
+                  >
                     <div className="w-20 h-20 rounded-[28px] bg-orange-50 flex items-center justify-center shadow-inner">
                       <Upload className="w-9 h-9 text-orange-500 animate-bounce" />
                     </div>
@@ -6933,19 +7116,37 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
                   ) : (
                     <div className="space-y-2">
                       <Label className="text-[10px] font-black uppercase text-slate-400">Logo File Upload</Label>
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          if (e.target.files && e.target.files[0]) {
-                            setWatermarkFile(e.target.files[0]);
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (e.dataTransfer?.files && e.dataTransfer.files[0]) {
+                            const file = e.dataTransfer.files[0];
+                            if (file.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|svg)$/i.test(file.name)) {
+                              setWatermarkFile(file);
+                            }
                           }
                         }}
-                        className="rounded-xl border-slate-200 text-xs"
-                      />
-                      {watermarkFile && (
-                        <p className="text-[9px] text-slate-500 font-bold truncate">Logo: {watermarkFile.name}</p>
-                      )}
+                        onClick={() => document.getElementById("wm-logo-input")?.click()}
+                        className="border-2 border-dashed border-slate-200 hover:border-orange-500 bg-slate-50 hover:bg-orange-50/20 rounded-2xl p-4 text-center cursor-pointer transition-all duration-200 flex flex-col items-center justify-center space-y-1.5"
+                      >
+                        <Upload className="w-4 h-4 text-orange-500" />
+                        <span className="text-xs font-bold text-slate-700">
+                          {watermarkFile ? watermarkFile.name : "Drag & drop logo or click to browse"}
+                        </span>
+                        <input
+                          type="file"
+                          id="wm-logo-input"
+                          accept="image/*"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              setWatermarkFile(e.target.files[0]);
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </div>
                     </div>
                   )}
 
@@ -8053,14 +8254,34 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
                     {qrLogoPreset === "custom" && (
                       <div className="space-y-2 animate-fade-in">
                         <Label className="text-[10px] font-black uppercase text-slate-500">Upload Custom Image Logo</Label>
-                        <div className="flex gap-2 items-center">
-                          <Button
-                            type="button"
-                            onClick={() => document.getElementById("qr-logo-file")?.click()}
-                            className="bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-xl text-xs font-black h-9"
-                          >
-                            Choose Image
-                          </Button>
+                        <div
+                          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (e.dataTransfer?.files && e.dataTransfer.files[0]) {
+                              const file = e.dataTransfer.files[0];
+                              if (file.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|svg)$/i.test(file.name)) {
+                                const reader = new FileReader();
+                                reader.onload = (event) => {
+                                  if (event.target?.result) {
+                                    setQrLogo(event.target.result as string);
+                                    setQrErrorLevel("H");
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }
+                          }}
+                          onClick={() => document.getElementById("qr-logo-file")?.click()}
+                          className="border-2 border-dashed border-slate-200 hover:border-orange-500 bg-white hover:bg-orange-50/20 rounded-2xl p-3 text-center cursor-pointer transition-all duration-200 flex items-center justify-between gap-2"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Upload className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                            <span className="text-xs font-bold text-slate-700">
+                              {qrLogo ? "Change Logo (Drag & Drop)" : "Upload Logo (Drag & Drop)"}
+                            </span>
+                          </div>
                           <input
                             type="file"
                             id="qr-logo-file"
@@ -8069,7 +8290,7 @@ export default function ToolDetailPage({ params }: { params: Promise<{ category:
                             className="hidden"
                           />
                           {qrLogo && (
-                            <span className="text-[8px] text-emerald-600 font-bold bg-emerald-50 border border-emerald-100 rounded-lg py-1 px-2">
+                            <span className="text-[8px] text-emerald-600 font-bold bg-emerald-50 border border-emerald-100 rounded-lg py-1 px-2 shrink-0">
                               Logo Loaded!
                             </span>
                           )}

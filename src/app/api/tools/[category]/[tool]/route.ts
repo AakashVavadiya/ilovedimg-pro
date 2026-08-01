@@ -186,7 +186,7 @@ export async function POST(
           return NextResponse.json({ error: valResult.error }, { status: 400 });
         }
 
-        const ext = path.extname(file.name).toLowerCase();
+        const ext = valResult.ext || path.extname(file.name).toLowerCase();
         // Use random UUID for input filenames (protect path traversal)
         const tempInPath = path.join(scratchDir, `input_${crypto.randomUUID()}${ext}`);
         
@@ -218,7 +218,7 @@ export async function POST(
         return NextResponse.json({ error: valResult.error }, { status: 400 });
       }
 
-      const ext = path.extname(singleFile.name).toLowerCase();
+      const ext = valResult.ext || path.extname(singleFile.name).toLowerCase();
       const tempInPath = path.join(scratchDir, `input_${crypto.randomUUID()}${ext}`);
       
       await writeFile(tempInPath, buffer);
@@ -238,7 +238,7 @@ export async function POST(
         return NextResponse.json({ error: `Watermark image: ${valResult.error}` }, { status: 400 });
       }
 
-      const ext = path.extname(watermarkFile.name).toLowerCase();
+      const ext = valResult.ext || path.extname(watermarkFile.name).toLowerCase();
       const tempWmPath = path.join(scratchDir, `watermark_${crypto.randomUUID()}${ext}`);
       await writeFile(tempWmPath, buffer);
       settings.watermark_img = tempWmPath;

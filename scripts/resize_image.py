@@ -34,7 +34,7 @@ def main():
     from image_validator import validate_image_file
 
     try:
-        validate_image_file(input_path, max_size_mb=25)
+        validate_image_file(input_path, max_size_mb=40)
         print(f"Resizing image: {input_path} to {output}")
         img = Image.open(input_path)
         orig_w, orig_h = img.size

@@ -42,7 +42,7 @@ def main():
 
     try:
         from image_validator import validate_image_file
-        validate_image_file(input_path, max_size_mb=25)
+        validate_image_file(input_path, max_size_mb=40)
         print(f"Converting JPG image: {input_path} to format {target_format} at {output}")
         img = Image.open(input_path)
         

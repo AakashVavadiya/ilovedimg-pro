@@ -37,7 +37,7 @@ def main():
     import math
 
     try:
-        validate_image_file(input_path, max_size_mb=25)
+        validate_image_file(input_path, max_size_mb=40)
         print(f"Cropping image: {input_path} to {output} (shape: {shape})")
         img = Image.open(input_path)
         

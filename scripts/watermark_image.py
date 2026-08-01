@@ -45,9 +45,9 @@ def main():
 
     try:
         from image_validator import validate_image_file
-        validate_image_file(input_path, max_size_mb=25)
+        validate_image_file(input_path, max_size_mb=40)
         if wm_type == "image" and wm_img_path:
-            validate_image_file(wm_img_path, max_size_mb=25)
+            validate_image_file(wm_img_path, max_size_mb=40)
             
         print(f"Applying watermark to: {input_path}")
         base_img = Image.open(input_path).convert("RGBA")

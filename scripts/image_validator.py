@@ -1,7 +1,7 @@
 import sys
 import os
 
-def validate_image_file(src_path, max_size_mb=25):
+def validate_image_file(src_path, max_size_mb=40):
     # 1. Check file size
     if not os.path.exists(src_path):
         print(f"Error: Image file not found: {src_path}")

@@ -4,6 +4,7 @@ export interface ValidationResult {
   isValid: boolean;
   mimeType?: string;
   format?: string;
+  ext?: string;
   error?: string;
 }
 
@@ -75,7 +76,8 @@ export function validateFileBuffer(buffer: Buffer, filename: string): Validation
     return {
       isValid: true,
       mimeType: "text/html",
-      format: "html"
+      format: "html",
+      ext: ext
     };
   }
 
@@ -92,20 +94,19 @@ export function validateFileBuffer(buffer: Buffer, filename: string): Validation
     return { isValid: false, error: "Unsupported or invalid image file format. Only JPG, JPEG, PNG, WEBP, BMP, TIFF, static GIF, and HTML (.html, .htm) files are allowed." };
   }
 
-  // 2. Reject renamed files: check that extension matches actual header format
-  if (!matchedSig.exts.includes(ext)) {
-    return { isValid: false, error: `File type mismatch: File extension '${ext}' does not match the actual image header format '${matchedSig.format}'.` };
-  }
-
-  // 3. Reject animated GIFs (Static GIF only)
+  // 2. Reject animated GIFs (Static GIF only)
   if (matchedSig.format === "gif" && isAnimatedGif(buffer)) {
     return { isValid: false, error: "Animated GIF files are not allowed. Please upload a static GIF." };
   }
 
+  // Determine normalized actual extension from binary header signature
+  const realExt = matchedSig.exts.includes(ext) ? ext : matchedSig.exts[0];
+
   return {
     isValid: true,
     mimeType: matchedSig.mime,
-    format: matchedSig.format
+    format: matchedSig.format,
+    ext: realExt
   };
 }
 
@@ -116,6 +117,6 @@ export function getToolSizeLimit(tool: string): number {
     case "remove-bg":
       return 15 * 1024 * 1024; // 15 MB
     default:
-      return 25 * 1024 * 1024; // 25 MB
+      return 40 * 1024 * 1024; // 40 MB
   }
 }
